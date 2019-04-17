@@ -112,7 +112,22 @@ implementation{
 		//dbg(FLOODING_CHANNEL, "Package removed\n\n");
 		return msg;
 	} 
-	
+	if(myMsg->protocol == PROTOCOL_TCP){
+		if(TOS_NODE_ID == myMsg->dest) {
+			call Transport.receive(myMsg);
+			return msg;
+		}else {
+			if(call routingTable.contains(myMsg -> src)){
+              			dbg(NEIGHBOR_CHANNEL, "to get to:%d, send through:%d\n", myMsg -> dest, call routingTable.get(myMsg -> dest));
+              			makePack(&sendPackage, myMsg->src, myMsg->dest, myMsg->TTL-1, myMsg->protocol, myMsg->seq, (uint8_t *) myMsg->payload, sizeof(myMsg->payload));
+              			call Sender.send(sendPackage, call routingTable.get(myMsg -> dest));
+            		}else{
+              			dbg(NEIGHBOR_CHANNEL, "Couldn't find the routing table for:%d so flooding\n",TOS_NODE_ID);
+              			makePack(&sendPackage, myMsg->src, myMsg->dest, myMsg->TTL-1, myMsg->protocol, myMsg->seq, (uint8_t *) myMsg->payload, sizeof(myMsg->payload));
+              			call Sender.send(sendPackage, AM_BROADCAST_ADDR);
+            		}	
+		}
+	}
 	if(myMsg->protocol == PROTOCOL_PING) {
 		if(TOS_NODE_ID == myMsg->dest) {
 			dbg(FLOODING_CHANNEL, "Success!: Package from Node: %d, at destination Node: %d, Package Payload: %s\n\n", myMsg->src, myMsg->dest, myMsg->payload);
@@ -444,14 +459,12 @@ implementation{
    event void CommandHandler.printDistanceVector(){}
 
    event void CommandHandler.setTestServer() {
-        fd[fdIndex] = call Transport.socket();
-	//dbg(ROUTING_CHANNEL,"SETTING UP TEST SERVER for %d on port %d\n", TOS_NODE_ID);
-	//dbg(ROUTING_CHANNEL, "socket fd: %d\n", fd[fdIndex-1]);
-	call Transport.bind(fd[fdIndex], SockStruct);
-	fdIndex++;
+        call Transport.setTestServer();
 }
 
-   event void CommandHandler.setTestClient(){}
+   event void CommandHandler.setTestClient(){
+	call Transport.setTestClient();
+}
 
    event void CommandHandler.setAppServer(){}
 

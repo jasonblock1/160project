@@ -161,6 +161,8 @@ def main():
     s.addChannel(s.FLOODING_CHANNEL);
     s.addChannel(s.ROUTING_CHANNEL);
  	
+    #proj 3
+    s.addChannel(s.TRANSPORT_CHANNEL);
 
     s.runTime(10);
     s.ping(1, 2, "Hello, World");
@@ -176,8 +178,9 @@ def main():
     #Project 3
     s.cmdTestServer(1,'255');
     s.runTime(10);
-    s.cmdTestServer(1,'255');
+    s.cmdTestClient(2,'255');
     s.runTime(10);
+  
 
 if __name__ == '__main__':
     main()
