@@ -14,6 +14,8 @@ class TestSim:
     CMD_NEIGHBOR_DUMP = 1
     CMD_LINKSTATE_DUMP = 2
     CMD_ROUTE_DUMP=3
+    CMD_TEST_SERVER = 5
+    CMD_TEST_CLIENT = 4
 
     # CHANNELS - see includes/channels.h
     COMMAND_CHANNEL="command";
@@ -132,6 +134,14 @@ class TestSim:
     def addChannel(self, channelName, out=sys.stdout):
         print 'Adding Channel', channelName;
         self.t.addChannel(channelName, out);
+	
+    def cmdTestServer(self, address, port):
+	print 'Listening for Server connections..', address, port;
+        self.sendCMD(self.CMD_TEST_SERVER, address, port);
+
+    def cmdTestClient(self, address, port):
+        print 'Listening for Client connections...', address, port;
+        self.sendCMD(self.CMD_TEST_CLIENT, address, port);
 
 
 
@@ -152,17 +162,22 @@ def main():
     s.addChannel(s.ROUTING_CHANNEL);
  	
 
-    s.runTime(20);
+    s.runTime(10);
     s.ping(1, 2, "Hello, World");
-    s.runTime(20);
-    s.ping(1, 10, "Jason Block!!");
-    s.runTime(20);
-    s.routeDMP(3);
-    s.runTime(20);
-    s.linkstateDMP(3);
+    #s.runTime(20);
+    #s.ping(1, 10, "Jason Block!!");
+    #s.runTime(20);
+    #s.routeDMP(3);
+    #s.runTime(20);
+    #s.linkstateDMP(3);
     #s.neighborDMP(3);
-    s.runTime(20);
+    s.runTime(10);
     
+    #Project 3
+    s.cmdTestServer(1,'255');
+    s.runTime(10);
+    s.cmdTestServer(1,'255');
+    s.runTime(10);
 
 if __name__ == '__main__':
     main()

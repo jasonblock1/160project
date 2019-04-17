@@ -53,6 +53,9 @@ module Node{
   uses interface Timer<TMilli> as dijkstraTimer;
   uses interface Timer<TMilli> as lsrTimer;
 
+	//project 3
+  uses interface Transport;
+
 }
 
 implementation{
@@ -72,6 +75,10 @@ implementation{
 	uint16_t lspAge = 0;
 	bool valInArray(uint16_t val, uint16_t *arr, uint16_t size);
 	int graph();
+
+	//project3
+	socket_t fd[10];
+	uint8_t fdIndex = 0;
 
 
    // Prototypes
@@ -436,7 +443,13 @@ implementation{
 
    event void CommandHandler.printDistanceVector(){}
 
-   event void CommandHandler.setTestServer(){}
+   event void CommandHandler.setTestServer() {
+        fd[fdIndex] = call Transport.socket();
+	//dbg(ROUTING_CHANNEL,"SETTING UP TEST SERVER for %d on port %d\n", TOS_NODE_ID);
+	//dbg(ROUTING_CHANNEL, "socket fd: %d\n", fd[fdIndex-1]);
+	call Transport.bind(fd[fdIndex], SockStruct);
+	fdIndex++;
+}
 
    event void CommandHandler.setTestClient(){}
 

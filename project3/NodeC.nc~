@@ -50,17 +50,20 @@ implementation {
     components new ListC(pack, 20) as ListOfNeighborsC;
     Node.ListOfNeighbors -> ListOfNeighborsC;
 
+    //components new PoolC(neighbor, 64) as NeighborPoolC;
+    //Node.NeighborPool -> NeighborPoolC;
 
     components new HashmapC(int, 300) as routingTableC;
     Node.routingTable -> routingTableC;
 
     components new ListC(lspLink, 64) as lspLinkListC;
-    Node.lspLinkList -> lspLinkListC;
+    Node.lspLinkList -> lspLinkListC; 
 
-    components TransportC;
-    Node.Transport -> TransportC; 
+    //components new TimerMilliC() as lsrTimer;
+    //LinkStateP.lsrTimer -> lsrTimerC;
 
-    
+    //components new TimerMilliC() as dijkstra;
+    //LinkStateP.dijkstra -> dijkstraC;
 
 
     //components LinkStateC;//Change before submission*****
