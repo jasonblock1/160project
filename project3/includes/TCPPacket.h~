@@ -12,9 +12,9 @@
 #define FIN_FLAG 5
 #define FIN_ACK 6
 
-enum {
-	TCP_PACKET_HEADER_LENGTH = 8;
-	TCP_PACKET_MAX_PAYLOAD_SIZE = 12;
+enum{
+	TCP_PACKET_HEADER_LENGTH = 8,
+	TCP_PACKET_MAX_PAYLOAD_SIZE = 28
 };
 
 typedef nx_struct tcp_pack{

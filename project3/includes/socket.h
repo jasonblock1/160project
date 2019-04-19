@@ -52,6 +52,7 @@ typedef struct socket_t{
 
     uint16_t RTT;
     uint8_t effectiveWindow;
+    uint8_t transfer;
 }socket_t;
 
 #endif

@@ -1,5 +1,5 @@
 #include "../../includes/socket.h"
-
+#include "../../includes/packet.h"
 configuration TransportC{
    provides interface Transport;
 }
@@ -17,6 +17,18 @@ implementation{
     components new TimerMilliC() as ServerTimerC;
     TransportP.ServerTimer -> ServerTimerC; 
 
+    components new TimerMilliC() as ClientWriteTimerC;
+    TransportP.ClientWriteTimer -> ClientWriteTimerC;
+
+    components new TimerMilliC() as SendTimerC;
+    TransportP.SendTimer -> SendTimerC;
+
     components new ListC(socket_t, 10) as SocketListC;
     TransportP.SocketList -> SocketListC;
+
+    components new ListC(pack, 20) as SendPacketQueueC;
+    TransportP.SendPacketQueue -> SendPacketQueueC;
+
+    components new ListC(pack, 20) as RcvdPacketQueueC;
+    TransportP.RcvdPacketQueue -> RcvdPacketQueueC;
 }
