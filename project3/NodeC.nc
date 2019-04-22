@@ -59,6 +59,9 @@ implementation {
 
     components TransportC;
     Node.Transport -> TransportC; 
+ 
+    components RoutingTableC;
+    Node.RoutingTable -> RoutingTableC;
 
     
 

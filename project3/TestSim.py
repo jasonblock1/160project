@@ -147,9 +147,9 @@ class TestSim:
 
 def main():
     s = TestSim();
-    s.runTime(10);
+    s.runTime(40);
     s.loadTopo("long_line.topo");
-    s.loadNoise("no_noise.txt");
+    s.loadNoise("some_noise.txt");
     s.bootAll();
 	
     #Proj 1
@@ -164,22 +164,22 @@ def main():
     #proj 3
     s.addChannel(s.TRANSPORT_CHANNEL);
 
-    s.runTime(10);
+    s.runTime(20);
     s.ping(1, 2, "Hello, World");
-    #s.runTime(20);
-    #s.ping(1, 10, "Jason Block!!");
-    #s.runTime(20);
-    #s.routeDMP(3);
-    #s.runTime(20);
-    #s.linkstateDMP(3);
-    #s.neighborDMP(3);
     s.runTime(10);
+    #s.ping(2, 10, "Jason Block!!");
+    #s.runTime(40);
+    #s.linkstateDMP(2);
+    #s.runTime(20);
+    #s.routeDMP(2);
+    #s.neighborDMP(3);
+    #s.runTime(20);
     
     #Project 3
     s.cmdTestServer(1,'255');
-    s.runTime(10);
-    s.cmdTestClient(2,'255');
     s.runTime(20);
+    s.cmdTestClient(2,'255');
+    s.runTime(60);
   
 
 if __name__ == '__main__':

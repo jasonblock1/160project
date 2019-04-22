@@ -10,7 +10,7 @@
 #define SYN_ACK_FLAG 3
 #define ACK_FLAG 4
 #define FIN_FLAG 5
-#define FIN_ACK 6
+#define FIN_ACK_FLAG 6
 
 enum{
 	TCP_PACKET_HEADER_LENGTH = 8,

@@ -52,6 +52,7 @@ module Node{
   uses interface Timer<TMilli> as NeighborDiscoveryTimer;
   uses interface Timer<TMilli> as dijkstraTimer;
   uses interface Timer<TMilli> as lsrTimer;
+  uses interface RoutingTable;
 
 	//project 3
   uses interface Transport;
@@ -112,23 +113,25 @@ implementation{
 		//dbg(FLOODING_CHANNEL, "Package removed\n\n");
 		return msg;
 	} 
-	if(myMsg->protocol == PROTOCOL_TCP){
+	if(myMsg->protocol == PROTOCOL_TCP) {
+		//dbg(ROUTING_CHANNEL, "HERE\n");
 		if(TOS_NODE_ID == myMsg->dest) {
+			//dbg(FLOODING_CHANNEL, "Success!: Package from Node: %d, at destination Node: %d, Package Payload: %s\n\n", myMsg->src, myMsg->dest, myMsg->payload);
 			call Transport.receive(myMsg);
 			return msg;
 		}else {
 			if(call routingTable.contains(myMsg -> src)){
-              			dbg(NEIGHBOR_CHANNEL, "to get to:%d, send through:%d\n", myMsg -> dest, call routingTable.get(myMsg -> dest));
+              			//dbg(NEIGHBOR_CHANNEL, "to get to:%d, send through:%d\n", myMsg -> dest, call routingTable.get(myMsg -> dest));
               			makePack(&sendPackage, myMsg->src, myMsg->dest, myMsg->TTL-1, myMsg->protocol, myMsg->seq, (uint8_t *) myMsg->payload, sizeof(myMsg->payload));
               			call Sender.send(sendPackage, call routingTable.get(myMsg -> dest));
             		}else{
-              			dbg(NEIGHBOR_CHANNEL, "Couldn't find the routing table for:%d so flooding\n",TOS_NODE_ID);
+              			//dbg(NEIGHBOR_CHANNEL, "Couldn't find the routing table for:%d so flooding\n",TOS_NODE_ID);
               			makePack(&sendPackage, myMsg->src, myMsg->dest, myMsg->TTL-1, myMsg->protocol, myMsg->seq, (uint8_t *) myMsg->payload, sizeof(myMsg->payload));
               			call Sender.send(sendPackage, AM_BROADCAST_ADDR);
             		}	
 		}
-	}
-	if(myMsg->protocol == PROTOCOL_PING) {
+		
+	}else if(myMsg->protocol == PROTOCOL_PING) {
 		if(TOS_NODE_ID == myMsg->dest) {
 			dbg(FLOODING_CHANNEL, "Success!: Package from Node: %d, at destination Node: %d, Package Payload: %s\n\n", myMsg->src, myMsg->dest, myMsg->payload);
 			return msg;
@@ -138,7 +141,7 @@ implementation{
               			makePack(&sendPackage, myMsg->src, myMsg->dest, myMsg->TTL-1, myMsg->protocol, myMsg->seq, (uint8_t *) myMsg->payload, sizeof(myMsg->payload));
               			call Sender.send(sendPackage, call routingTable.get(myMsg -> dest));
             		}else{
-              			dbg(NEIGHBOR_CHANNEL, "Couldn't find the routing table for:%d so flooding\n",TOS_NODE_ID);
+              			//dbg(NEIGHBOR_CHANNEL, "Couldn't find the routing table for:%d so flooding\n",TOS_NODE_ID);
               			makePack(&sendPackage, myMsg->src, myMsg->dest, myMsg->TTL-1, myMsg->protocol, myMsg->seq, (uint8_t *) myMsg->payload, sizeof(myMsg->payload));
               			call Sender.send(sendPackage, AM_BROADCAST_ADDR);
             		}	
@@ -310,7 +313,7 @@ implementation{
     // one shot timer and include random element to it.
     dbg(GENERAL_CHANNEL, "Booted\n");
     call lsrTimer.startPeriodic(80000 + (uint16_t)((call Random.rand16())%10000));
-    call dijkstraTimer.startOneShot(90000 + (uint16_t)((call Random.rand16())%10000));
+    call dijkstraTimer.startPeriodic(90000 + (uint16_t)((call Random.rand16())%10000));
 }
 
    event void lsrTimer.fired() {
@@ -342,7 +345,7 @@ implementation{
        			lsp.cost = 1;
         		lsp.src = TOS_NODE_ID;
         		call lspLinkList.pushback(lsp);
-			call dijkstraTimer.startOneShot(90000 + (uint16_t)((call Random.rand16())%10000));
+			//call dijkstraTimer.startOneShot(1000 + (uint16_t)((call Random.rand16())%1000));
 		}
 		if(!valInArray(neighborNode.src, neighborArr, neighborListSize)) {
 			neighborArr[i] = neighborNode.src;
@@ -451,6 +454,7 @@ implementation{
 				nextHop = start;
 			} if (nextHop != 0) {
 				call routingTable.insert(i, nextHop);
+				call RoutingTable.update(i,nextHop);
 			}
 		}
 	}
