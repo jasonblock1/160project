@@ -327,6 +327,7 @@ implementation{
 						SeqNumToAck = seq;
 						mySocket.nextExpected++;
 						//Largest Acceptable Frame - Last Frame Received <= Receive Window Size
+						//Flow Control
 						while((mySocket.largestAcceptable - seq) <= mySocket.effectiveWindow) {
 							mySocket.largestAcceptable++;
 						}
@@ -335,6 +336,7 @@ implementation{
 						//Initializing ACK packet
 						myTCPPack->ACK = SeqNumToAck;
 						myTCPPack->seq = SeqNumToAck;
+						//Fow Control via effective window
 						myTCPPack->window = mySocket.largestAcceptable;
 						myTCPPack->flag = DATA_ACK_FLAG;	
 						myTCPPack->srcPort = mySocket.src.port;
