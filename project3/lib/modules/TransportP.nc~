@@ -2,6 +2,7 @@
 #include "../../includes/packet.h"
 #include "../../includes/TCPPacket.h"
 #include "../../includes/protocol.h"
+#include <Timer.h>
 
 module TransportP{
    provides interface Transport;
@@ -31,7 +32,8 @@ implementation{
 		tcp_pack* myTCPPack;
 		socket_t mySocket = fd;
 		uint8_t i = 0;
-
+		call SendPacketQueue.popfront();
+		call TimeoutTimer.stop();
 		//socket_t server = getSocket(mySocket.dest.port, mySocket.src.port);		
 		//server.transfer = fd.transfer;
 		//activeSockets[server.fd] = server;
@@ -41,8 +43,8 @@ implementation{
 			mySocket = activeSockets[i];
 			//dbg(TRANSPORT_CHANNEL, "ACTIVE SOCKET: %d\n",mySocket.state);
 		}
-		call ClientWriteTimer.startPeriodic(100);
-		call SendTimer.startOneShot(1000);
+		call ClientWriteTimer.startPeriodic(10000);
+		call SendTimer.startOneShot(100000);
 				
 	}
 
@@ -191,8 +193,8 @@ implementation{
 	dbg(TRANSPORT_CHANNEL, "READING DATA...\n");
 	//for(i = fd.lastRead;  i < fd.transfer; i++) {
 		//if((call SendPacketQueue.size()) < 20) {
-			buff[fd.lastRead + 1] = myTCPPack->payload[0];
-			myTCPPack->ACK = fd.lastRead + 1;
+			buff[myTCPPack->seq] = myTCPPack->payload[0];
+			myTCPPack->ACK = myTCPPack->seq;
 			myTCPPack->flag = DATA_ACK_FLAG;
 			myTCPPack->srcPort = fd.src.port;
 			myTCPPack->destPort = fd.dest.port;
@@ -239,8 +241,9 @@ implementation{
 	mySocket.state = SYN_SENT;
 
 	dbg(TRANSPORT_CHANNEL, "CLIENT CONNECTING...%d\n",mySocket.dest.addr);
-
-	call Sender.send(myMsg, (call RoutingTable.get(mySocket.dest.addr)));
+	call SendPacketQueue.pushback(myMsg);
+	call SendTimer.startOneShot(10);
+	//call Sender.send(myMsg, (call RoutingTable.get(mySocket.dest.addr)));
 
 	
   /**
@@ -271,23 +274,27 @@ implementation{
 		call Transport.makePack(&myMsg, TOS_NODE_ID, fd.dest.addr, 20, PROTOCOL_TCP, 0, myTCPPack, PACKET_MAX_PAYLOAD_SIZE);
 
 		dbg(TRANSPORT_CHANNEL, "FIN WAIT...\n");
-
-		call Sender.send(myMsg, (call RoutingTable.get(fd.dest.addr)));
+		call SendPacketQueue.pushback(myMsg);
+		call SendTimer.startOneShot(10);
+		//call Sender.send(myMsg, (call RoutingTable.get(fd.dest.addr)));
 	}else if(fd.state == FIN_WAIT) {
 		myTCPPack->flag = FIN_ACK_FLAG;
 		
 		fd.state = TIME_WAIT;		
 		activeSockets[fd.fd] = fd;
 		call Transport.makePack(&myMsg, TOS_NODE_ID, fd.dest.addr, 20, PROTOCOL_TCP, 0, myTCPPack, PACKET_MAX_PAYLOAD_SIZE);
-
-		call Sender.send(myMsg, (call RoutingTable.get(fd.dest.addr)));
+		call SendPacketQueue.pushback(myMsg);
+		call SendTimer.startOneShot(10);
+		//call Sender.send(myMsg, (call RoutingTable.get(fd.dest.addr)));
 	
 		dbg(TRANSPORT_CHANNEL, "TIME WAIT...\n");
 
-		call TimeWait.startOneShot(100000);
+		call TimeWait.startOneShot(5000);
 
 	}else if(fd.state == TIME_WAIT) {
 		uint8_t i = 1;
+		call SendPacketQueue.popfront();
+		call TimeoutTimer.stop();
 		dbg(TRANSPORT_CHANNEL, "CONNECTION CLOSED\n");
 		while(fd.rcvdBuff[i] != 0) {
 			dbg(TRANSPORT_CHANNEL, "DATA: %hhu \n", fd.rcvdBuff[i]);
@@ -301,7 +308,7 @@ implementation{
 
 		uint8_t srcPort = 0;
 		uint8_t destPort = 0;
-		uint8_t seq = 0;
+		uint8_t seq = 1;
 		uint8_t lastAck = 0;
 		uint8_t flag = 0;
 		uint16_t bufflen = TCP_PACKET_MAX_PAYLOAD_SIZE;
@@ -316,7 +323,8 @@ implementation{
 
 		pack myNewMsg;
 		tcp_pack* myTCPPack;
-
+		
+		
 		srcPort = myMsg->srcPort;
 		destPort = myMsg->destPort;
 		seq = myMsg->seq;
@@ -332,6 +340,10 @@ implementation{
 
 			if(flag == SYN_FLAG){
 				dbg(TRANSPORT_CHANNEL, "Received SYN! \n");
+
+				//call SendPacketQueue.popfront();
+				//call TimeoutTimer.stop();
+			
 				for(i = 0; i < maxSockets; i++) {
 				mySocket = activeSockets[i];
 					if(mySocket.src.port == destPort && mySocket.state == LISTEN) {
@@ -357,14 +369,19 @@ implementation{
 						myTCPPack->ACK = seq + 1;
 						myTCPPack->flag = SYN_ACK_FLAG;
 						dbg(TRANSPORT_CHANNEL, "Sending SYN ACK! %d\n", mySocket.state);
+						mySocket.state = 4;
+						activeSockets[mySocket.fd] = mySocket;
 						call Transport.makePack(&myNewMsg, TOS_NODE_ID, mySocket.dest.addr, 20, 4, 0, myTCPPack, PACKET_MAX_PAYLOAD_SIZE);
 						call Sender.send(myNewMsg, (call RoutingTable.get(mySocket.dest.addr)));
+						
 				}
 			}
 			
 			else if(flag == SYN_ACK_FLAG){
 				dbg(TRANSPORT_CHANNEL, "Received SYN ACK! \n");
 				mySocket = getSocket(destPort, srcPort);
+				call SendPacketQueue.popfront();
+				call TimeoutTimer.stop();
 				mySocket.state = ESTABLISHED;
 				//dbg(TRANSPORT_CHANNEL, "state: %d", mySocket.fd);
 				activeSockets[mySocket.fd] = mySocket;
@@ -394,12 +411,26 @@ implementation{
 				dbg(TRANSPORT_CHANNEL, "RECEIVED DATA %u\n", myMsg->payload[0]);
 				mySocket = getSocket(destPort, srcPort);
 				myTCPPack = (tcp_pack*)(myNewMsg.payload);
+				//dbg(TRANSPORT_CHANNEL, "HERE %d\n", mySocket.nextExpected);
 				if(mySocket.state == ESTABLISHED) {
-					//dbg(TRANSPORT_CHANNEL, "HERE\n");
+					dbg(TRANSPORT_CHANNEL, "HERE %d\n", seq);
+					mySocket.nextExpected++;
 					mySocket.lastRcvd = myMsg->payload[0];
-					call RcvdPacketQueue.pushback(*msg);
-					call ServerReadTimer.startOneShot(10);
-					call SendTimer.startOneShot(10);
+					mySocket.rcvdBuff[seq] = mySocket.lastRcvd;
+
+					dbg(TRANSPORT_CHANNEL, "READING DATA...\n");
+
+					myTCPPack->ACK = seq;
+					myTCPPack->seq = seq;
+					myTCPPack->flag = DATA_ACK_FLAG;	
+					myTCPPack->srcPort = mySocket.src.port;
+					myTCPPack->destPort = mySocket.dest.port;
+					call Transport.makePack(&myNewMsg, TOS_NODE_ID, mySocket.dest.addr, 20, PROTOCOL_TCP, 0, myTCPPack, PACKET_MAX_PAYLOAD_SIZE);
+		
+					call Sender.send(myNewMsg, (call RoutingTable.get(mySocket.dest.addr)));
+					//call RcvdPacketQueue.pushback(*msg);
+					//call ServerReadTimer.startOneShot(1);
+					//call SendTimer.startOneShot(10);
 				}	
 				activeSockets[mySocket.fd] = mySocket;		
 			}else if(flag == DATA_ACK_FLAG) {
@@ -408,11 +439,12 @@ implementation{
 				myTCPPack = (tcp_pack*)(myNewMsg.payload);
 				//dbg(TRANSPORT_CHANNEL, "Transfer %hhu\n", mySocket.transfer);
 				if(seq == lastAck){
+					call TimeoutTimer.stop();
 					mySocket.lastAck = lastAck;
 					activeSockets[mySocket.fd] = mySocket;
 					call SendPacketQueue.popfront();
-					call TimeoutTimer.startOneShot(500000);
-					call SendTimer.startOneShot(10);
+					//call TimeoutTimer.startOneShot(500000);
+					call SendTimer.startOneShot(10000);
 				
 				//}else{
 				//	call SendTimer.startOneShot(10);	
@@ -427,11 +459,15 @@ implementation{
 		}else if(flag == FIN_FLAG || flag == FIN_ACK_FLAG){
 			//mySocket = getSocket(destPort, srcPort);
 			if(flag == FIN_FLAG) {
+				call SendPacketQueue.popfront();
+				call TimeoutTimer.stop();
 				mySocket = getSocket(srcPort, destPort);
 				myTCPPack = (tcp_pack*)(myNewMsg.payload);
 				dbg(TRANSPORT_CHANNEL, "RECEIVED FIN\n");
 				call Transport.close(mySocket);
 			}else if(flag == FIN_ACK_FLAG) {
+				call SendPacketQueue.popfront();
+				call TimeoutTimer.stop();
 				mySocket = getSocket(srcPort, destPort);
 				dbg(TRANSPORT_CHANNEL, "RECEIVED FIN ACK\n");
 				call Transport.close(mySocket);
@@ -485,7 +521,8 @@ implementation{
 	
 	mySocket.src = myAddr;
 	mySocket.state = LISTEN;
-
+	
+	mySocket.nextExpected = 1;
 	mySocket.lastRcvd = 0;	
 	mySocket.lastRead = 0;
 
@@ -518,6 +555,7 @@ implementation{
 
 	mySocket.transfer = 10;
 	mySocket.lastWritten = 0;
+	mySocket.lastAck = 0;
 	for(i = 0; i < SOCKET_BUFFER_SIZE; i++) {
 		mySocket.sendBuff[i] = 0;
 	}
@@ -565,7 +603,7 @@ implementation{
 	if(!(call SendPacketQueue.isEmpty())) {
 		myMsg = call SendPacketQueue.front();
 		call Sender.send(myMsg, (call RoutingTable.get(myMsg.dest)));
-		call TimeoutTimer.startOneShot(5000);
+		call TimeoutTimer.startOneShot(14000);
 	}
 }
    event void ServerReadTimer.fired(){
@@ -574,7 +612,7 @@ implementation{
 	socket_t mySocket;
 	//dbg(TRANSPORT_CHANNEL, "empty: %d\n", !(call RcvdPacketQueue.isEmpty()));
 	if(!(call RcvdPacketQueue.isEmpty())) {
-		//dbg(TRANSPORT_CHANNEL, "HERE\n");
+		dbg(TRANSPORT_CHANNEL, "HERE\n");
 		myMsg = (call RcvdPacketQueue.popfront());
 		myTCPPack = (tcp_pack *)(myMsg.payload);
 
@@ -613,12 +651,13 @@ implementation{
 		myMsg = call SendPacketQueue.front();
 		myTCPPack = (tcp_pack *)(myMsg.payload);
 		mySocket = getSocket(myTCPPack->srcPort, myTCPPack->destPort);
-		if(myTCPPack->seq != mySocket.lastAck) {
+		if(myTCPPack->flag == SYN_FLAG || myTCPPack->flag == SYN_ACK_FLAG || myTCPPack->flag == ACK_FLAG) {
+			dbg(TRANSPORT_CHANNEL, "RETRANSMITTING \n");
+			call Sender.send(myMsg, (call RoutingTable.get(myMsg.dest)));	
+		}else if(myTCPPack->seq > mySocket.lastAck) {
 			dbg(TRANSPORT_CHANNEL, "RETRANSMITTING %d\n", myTCPPack->seq);
 			call Sender.send(myMsg, (call RoutingTable.get(myMsg.dest)));
 		}
-	}else{
-		call TimeoutTimer.stop();
 	}
 }
    command void Transport.makePack(pack *Package, uint16_t src, uint16_t dest, uint16_t TTL, uint16_t protocol, uint16_t seq, uint8_t* payload, uint8_t length){

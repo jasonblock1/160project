@@ -179,7 +179,7 @@ def main():
     s.cmdTestServer(1,'255');
     s.runTime(20);
     s.cmdTestClient(2,'255');
-    s.runTime(60);
+    s.runTime(80);
   
 
 if __name__ == '__main__':
