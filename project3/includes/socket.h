@@ -59,6 +59,7 @@ typedef struct socket_t{
     uint8_t rcvdBuff[SOCKET_BUFFER_SIZE];
     uint8_t lastRead;
     uint8_t lastRcvd;
+    uint8_t largestAcceptable;
     uint8_t nextExpected;
 
     uint16_t RTT;

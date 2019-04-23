@@ -186,6 +186,7 @@ implementation{
                   		lsp.cost = 1;
                   		lsp.src = myMsg->src;
                   		call lspLinkList.pushback(lsp);
+				call dijkstraTimer.startOneShot(1000 + (uint16_t)((call Random.rand16())%1000));
 			}
                   //dbg(ROUTING_CHANNEL,"$$$Neighbor: %d\n",myMsg->payload[k]);
                 }
@@ -345,7 +346,7 @@ implementation{
        			lsp.cost = 1;
         		lsp.src = TOS_NODE_ID;
         		call lspLinkList.pushback(lsp);
-			//call dijkstraTimer.startOneShot(1000 + (uint16_t)((call Random.rand16())%1000));
+			call dijkstraTimer.startOneShot(1000 + (uint16_t)((call Random.rand16())%1000));
 		}
 		if(!valInArray(neighborNode.src, neighborArr, neighborListSize)) {
 			neighborArr[i] = neighborNode.src;

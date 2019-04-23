@@ -45,7 +45,7 @@ typedef struct socket_t{
     uint8_t fd;
     uint8_t flag;
     //enum socket_state state;
-    uint8_t state
+    uint8_t state;
     socket_addr_t src;
     socket_addr_t dest;
 
@@ -59,7 +59,7 @@ typedef struct socket_t{
     uint8_t rcvdBuff[SOCKET_BUFFER_SIZE];
     uint8_t lastRead;
     uint8_t lastRcvd;
-    uint8_t nextExpected;
+    uint8_t largestAcceptable;
 
     uint16_t RTT;
     uint8_t effectiveWindow;

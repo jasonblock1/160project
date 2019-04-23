@@ -114,14 +114,14 @@ implementation{
 		return msg;
 	} 
 	if(myMsg->protocol == PROTOCOL_TCP) {
-		dbg(ROUTING_CHANNEL, "HERE\n");
+		//dbg(ROUTING_CHANNEL, "HERE\n");
 		if(TOS_NODE_ID == myMsg->dest) {
 			//dbg(FLOODING_CHANNEL, "Success!: Package from Node: %d, at destination Node: %d, Package Payload: %s\n\n", myMsg->src, myMsg->dest, myMsg->payload);
 			call Transport.receive(myMsg);
 			return msg;
 		}else {
 			if(call routingTable.contains(myMsg -> src)){
-              			//dbg(NEIGHBOR_CHANNEL, "to get to:%d, send through:%d\n", myMsg -> dest, call routingTable.get(myMsg -> dest));
+              			dbg(NEIGHBOR_CHANNEL, "to get to:%d, send through:%d\n", myMsg -> dest, call routingTable.get(myMsg -> dest));
               			makePack(&sendPackage, myMsg->src, myMsg->dest, myMsg->TTL-1, myMsg->protocol, myMsg->seq, (uint8_t *) myMsg->payload, sizeof(myMsg->payload));
               			call Sender.send(sendPackage, call routingTable.get(myMsg -> dest));
             		}else{
@@ -186,6 +186,7 @@ implementation{
                   		lsp.cost = 1;
                   		lsp.src = myMsg->src;
                   		call lspLinkList.pushback(lsp);
+				call dijkstraTimer.startOneShot(1000 + (uint16_t)((call Random.rand16())%1000));
 			}
                   //dbg(ROUTING_CHANNEL,"$$$Neighbor: %d\n",myMsg->payload[k]);
                 }
@@ -345,7 +346,7 @@ implementation{
        			lsp.cost = 1;
         		lsp.src = TOS_NODE_ID;
         		call lspLinkList.pushback(lsp);
-			//call dijkstraTimer.startOneShot(1000 + (uint16_t)((call Random.rand16())%1000));
+			call dijkstraTimer.startOneShot(1000 + (uint16_t)((call Random.rand16())%1000));
 		}
 		if(!valInArray(neighborNode.src, neighborArr, neighborListSize)) {
 			neighborArr[i] = neighborNode.src;
