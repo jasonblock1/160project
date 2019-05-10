@@ -102,6 +102,7 @@ implementation{
 	myTCPPack->flag = DATA_FLAG;
 	myTCPPack->srcPort = fd.src.port;
 	myTCPPack->destPort = fd.dest.port;
+	myTCPPack->window = 5;
 	//Client: Package buffered data in frames and add frames to a queue
 	for(i = fd.lastWritten; i < fd.transfer && i < bufflen; i++) {
 		if(call SendPacketQueue.size() < 100) {
@@ -229,7 +230,8 @@ implementation{
 		uint16_t i = 0;
 		uint16_t j = 0;
 		uint32_t key = 0;
-		uint8_t SeqNumToAck = 0; 
+		uint8_t SeqNumToAck = 0;
+		uint8_t largestAcceptable = 0; 
 		socket_t mySocket;
 		socket_t connectedSocket; 
 		tcp_pack* myMsg = (tcp_pack *)(msg->payload);
@@ -242,7 +244,8 @@ implementation{
 		srcPort = myMsg->srcPort;
 		destPort = myMsg->destPort;
 		seq = myMsg->seq;
-		lastAck = myMsg->ACK;
+		lastAck = myMsg->lastACK;
+		largestAcceptable = myMsg->window;
 		flag = myMsg->flag;
 		
 		if(flag == SYN_FLAG || flag == SYN_ACK_FLAG || flag == ACK_FLAG){
@@ -322,19 +325,19 @@ implementation{
 				if(seq <= mySocket.largestAcceptable && seq > mySocket.lastRcvd) {
 					//Buffer receive data
 					mySocket.rcvdBuff[seq] = myMsg->payload[0];
-
-					if(seq == mySocket.nextExpected) {
+					while((mySocket.largestAcceptable - seq) <= mySocket.effectiveWindow) {
+						mySocket.largestAcceptable++;
+						
+					}
+					
 						SeqNumToAck = seq;
 						mySocket.nextExpected++;
-						//Largest Acceptable Frame - Last Frame Received <= Receive Window Size
-						while((mySocket.largestAcceptable - seq) <= mySocket.effectiveWindow) {
-							mySocket.largestAcceptable++;
-						}
 						
-						dbg(TRANSPORT_CHANNEL, "READING DATA...\n");
+						//dbg(TRANSPORT_CHANNEL, "READING DATA... %d\n", myMsg->payload[0]);
 						//Initializing ACK packet
 						myTCPPack->ACK = SeqNumToAck;
 						myTCPPack->seq = SeqNumToAck;
+						//Fow Control via effective window
 						myTCPPack->window = mySocket.largestAcceptable;
 						myTCPPack->flag = DATA_ACK_FLAG;	
 						myTCPPack->srcPort = mySocket.src.port;
@@ -342,32 +345,44 @@ implementation{
 						call Transport.makePack(&myNewMsg, TOS_NODE_ID, mySocket.dest.addr, 20, PROTOCOL_TCP, 0, myTCPPack, PACKET_MAX_PAYLOAD_SIZE);
 		
 						call Sender.send(myNewMsg, (call RoutingTable.get(mySocket.dest.addr)));
-					}
+					
 				}	
 				activeSockets[mySocket.fd] = mySocket;		
 			}else if(flag == DATA_ACK_FLAG) {
-				//dbg(TRANSPORT_CHANNEL, "RECEIVED DATA ACK %hhu %hhu\n", lastAck, seq);
+				
 				mySocket = getSocket(destPort, srcPort);
 				myTCPPack = (tcp_pack*)(myNewMsg.payload);
 				call TimeoutTimer.stop();
-				//SequenceNumToACK
-				if(seq == lastAck) {
-					dbg(TRANSPORT_CHANNEL, "ACK: %d\n", lastAck);
-					mySocket.lastAck = lastAck;
+				//Largest Acceptable Frame - Last Frame Received <= Receive Window Size
+				//Flow Control
+				while((mySocket.largestAcceptable - mySocket.lastAck) <= mySocket.effectiveWindow) {
+					mySocket.largestAcceptable++;
 					
+				}
+
+				if(mySocket.ACKed[seq] == FALSE) {
+					dbg(TRANSPORT_CHANNEL, "ACK: %d LAST ACK: %d\n", seq, mySocket.lastAck);
+					mySocket.ACKed[seq] = TRUE;	
+				}
+				//SequenceNumToACK
+				if(seq == mySocket.lastAck + 1) {
+					
+					mySocket.lastAck++;
+					mySocket.ACKed[seq] = TRUE;
 					activeSockets[mySocket.fd] = mySocket;
 					
 					call SendPacketQueue.popfront();
 					
 				
 				}
-				
+				activeSockets[mySocket.fd] = mySocket;
 				//If all data has been read close socket
-				if(lastAck == mySocket.transfer) {
+				if(mySocket.lastAck == mySocket.transfer) {
 					
 					call SendPacketQueue.popfront();
 					call TimeoutTimer.stop();
-					dbg(TRANSPORT_CHANNEL, "CLIENT INITIATING TEARDOWN... \n");
+					call SendTimer.stop();
+					//dbg(TRANSPORT_CHANNEL, "CLIENT INITIATING TEARDOWN... \n");
 					call Transport.close(mySocket);
 				}
 			}
@@ -416,9 +431,9 @@ implementation{
 	mySocket.src = myAddr;
 	mySocket.state = LISTEN;
 	
-	mySocket.transfer = 10;
+	mySocket.transfer = 20;
 	mySocket.effectiveWindow = 5;
-	mySocket.largestAcceptable = mySocket.effectiveWindow;
+	mySocket.largestAcceptable = 5;
 	mySocket.nextExpected = 1;
 	mySocket.lastRcvd = 0;	
 	mySocket.lastRead = 0;
@@ -455,11 +470,13 @@ implementation{
 
 	mySocket.lastSent = 0;
 	mySocket.effectiveWindow = 5;
-	mySocket.transfer = 10;
+	mySocket.largestAcceptable = 5;
+	mySocket.transfer = 20;
 	mySocket.lastWritten = 0;
 	mySocket.lastAck = 0;
 	for(i = 0; i < SOCKET_BUFFER_SIZE; i++) {
 		mySocket.sendBuff[i] = 0;
+		mySocket.ACKed[i] = 0;
 	}
 
 	activeSockets[fd] = mySocket;
@@ -501,6 +518,7 @@ implementation{
 
    event void SendTimer.fired() {
 	uint8_t i = 0;
+	uint8_t lastSeq = 0;
 	pack myMsg;
 	tcp_pack* myTCPPack;
 	socket_t mySocket;
@@ -508,16 +526,32 @@ implementation{
 	myMsg = call SendPacketQueue.front();
 	myTCPPack = (tcp_pack *)(myMsg.payload);
 	mySocket = getSocket(myTCPPack->srcPort, myTCPPack->destPort);
-	i = myTCPPack->window;
 	
+	dbg(TRANSPORT_CHANNEL, "\n");
 	if(myTCPPack->flag == DATA_FLAG){
-		while(i <= mySocket.effectiveWindow) {
+		dbg(TRANSPORT_CHANNEL, "WINDOW: %d\n", mySocket.largestAcceptable);
+		while(myTCPPack->seq < mySocket.largestAcceptable && i <= (call SendPacketQueue.size())) {
 			if(!(call SendPacketQueue.isEmpty())) {
+				//lastSeq = myTCPPack->seq;
 				myMsg = call SendPacketQueue.get(i);
+				myTCPPack = (tcp_pack *)(myMsg.payload);
+				mySocket = getSocket(myTCPPack->srcPort, myTCPPack->destPort);
+				myTCPPack->lastACK = mySocket.lastAck;
+				if(mySocket.lastAck == mySocket.transfer) {
+					return;
+				}else if(myTCPPack->seq > mySocket.lastSent && mySocket.lastSent != mySocket.transfer) {
+					dbg(TRANSPORT_CHANNEL, "SENDING...%d\n", myTCPPack->seq);
+					
+					mySocket.lastSent = myTCPPack->seq;
+				}else if(mySocket.ACKed[myTCPPack->seq] == FALSE) {
+					dbg(TRANSPORT_CHANNEL, "TIMEOUT...RETRANSMITTING %d\n", myTCPPack->seq);
+		
+				}
+				
 				call Sender.send(myMsg, (call RoutingTable.get(myMsg.dest)));
-				i++;
 				activeSockets[mySocket.fd] = mySocket;
 			}
+			i++;
 		}
 	}else{
 		if(!(call SendPacketQueue.isEmpty())) {
@@ -569,6 +603,9 @@ implementation{
 	socket_t mySocket;
 	tcp_pack* myTCPPack;
 	call SendTimer.stop();
+	myMsg = call SendPacketQueue.front();
+	myTCPPack = (tcp_pack *)(myMsg.payload);
+	mySocket = getSocket(myTCPPack->srcPort, myTCPPack->destPort);
 	dbg(TRANSPORT_CHANNEL, "TIMEOUT\n");
 	if(!(call SendPacketQueue.isEmpty())) {
 		

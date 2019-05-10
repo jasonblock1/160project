@@ -530,8 +530,8 @@ implementation{
 	dbg(TRANSPORT_CHANNEL, "\n");
 	if(myTCPPack->flag == DATA_FLAG){
 		dbg(TRANSPORT_CHANNEL, "WINDOW: %d\n", mySocket.largestAcceptable);
-		while(myTCPPack->seq < mySocket.largestAcceptable && i < (call SendPacketQueue.size())) {
-			if(!(call SendPacketQueue.isEmpty())) {
+		while(myTCPPack->seq < mySocket.largestAcceptable) {
+			if(!(call SendPacketQueue.isEmpty()) && i < mySocket.effectiveWindow) {
 				//lastSeq = myTCPPack->seq;
 				myMsg = call SendPacketQueue.get(i);
 				myTCPPack = (tcp_pack *)(myMsg.payload);
